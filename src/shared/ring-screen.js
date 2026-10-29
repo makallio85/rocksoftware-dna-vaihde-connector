@@ -19,14 +19,14 @@
     'use strict';
 
     /**
-     * The pop-up closed this long ago: it stopped ringing. Short, so the ERP
+     * The pop-up closed this long ago: it stopped ringing. Short, so the backend
      * stops saying "Saapuva puhelu" at once; it only rides over the moment the
      * title has changed back but the pop-up is still closing (test calls showed
      * no flicker of the pop-up itself).
      */
     var STOP_GRACE_MS = 300;
     /**
-     * Answered in this tab: DNA's call window takes the call over and the ERP
+     * Answered in this tab: DNA's call window takes the call over and the backend
      * hears "connected" from it. Stopped is reported only if that window has
      * not appeared by then (the worker ignores it if it has).
      */
@@ -38,7 +38,7 @@
      * @param {{title: string, popup: ?{heading: string}}} screen What DNA shows;
      *        `popup` is DNA's incoming-call pop-up, if open.
      * @returns {{ringing: boolean, number: ?string}} The number as DNA shows it
-     *          (the ERP normalises it); null for a hidden number or a name.
+     *          (the backend normalises it); null for a hidden number or a name.
      */
     function read(screen) {
         var title = TITLE_CALLING.exec(screen.title || '');

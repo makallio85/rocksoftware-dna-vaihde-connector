@@ -1,6 +1,6 @@
 /*
  * Counts what one call consumes from the paid services, as running totals in
- * the units the ERP prices them in:
+ * the units the backend prices them in:
  *
  *  - Speechmatics bills streamed audio time: each stream's bytes, at 16 kHz
  *    16-bit mono, are seconds.
@@ -10,7 +10,7 @@
  *  - OpenAI transcription of the customer bills audio time: the seconds of
  *    audio appended to the session, at 24 kHz 16-bit mono.
  *
- * The ERP keeps the larger of two totals, so reporting the same totals again
+ * The backend keeps the larger of two totals, so reporting the same totals again
  * never counts anything twice.
  *
  * Classic script for the service worker (importScripts) and Node tests.
@@ -56,7 +56,7 @@
         this.tokens.audio_out += Number(output.audio_tokens) || 0;
     };
 
-    /** The running totals as the ERP's `usages` list; empty kinds are left out. */
+    /** The running totals as the backend's `usages` list; empty kinds are left out. */
     Meter.prototype.report = function () {
         var rows = [
             ['speechmatics_audio_seconds', Math.round(this.speechmaticsBytes / BYTES_PER_SECOND_16K)],

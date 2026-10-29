@@ -1,9 +1,9 @@
 /*
- * Service worker: the only part of the extension that talks to the ERP, to
+ * Service worker: the only part of the extension that talks to the backend, to
  * Speechmatics and to OpenAI.
  *
- * It holds the employee's ERP API token (chrome.storage.local, set on the
- * options page) and relays the directory's polling and claims to the ERP's
+ * It holds the employee's API token for the backend (chrome.storage.local, set on the
+ * options page) and relays the directory's polling and claims to the backend's
  * public API. During a call it keeps the call's live connections:
  *
  *  - an ordinary call: one Speechmatics WebSocket per side, for the transcript;
@@ -12,12 +12,12 @@
  *    agent's tool calls (save_note, end_call) come out.
  *
  * Audio arrives from the call window as base64 chunks and is never written
- * anywhere. Transcript lines go to the ERP about once a second, usage (for the
+ * anywhere. Transcript lines go to the backend about once a second, usage (for the
  * cost of each call) every 15 seconds and when the call ends.
  *
  * The sockets live here rather than in the DNA page so the page's own security
  * policy cannot block them. No long-lived provider key ever exists here: the
- * ERP hands out short-lived keys bound to each session.
+ * backend hands out short-lived keys bound to each session.
  */
 importScripts('shared/transcript.js', 'shared/pcm.js', 'shared/usage.js', 'shared/listen.js', 'shared/incoming.js', 'shared/softphone.js');
 
@@ -33,32 +33,33 @@ var claimed = null;
 /** The call in progress, at most one. */
 var session = null;
 
-// --- ERP ---------------------------------------------------------------------
+// --- Backend -----------------------------------------------------------------
 
 async function settings() {
-    var stored = await chrome.storage.local.get(['erpUrl', 'token']);
+    var stored = await chrome.storage.local.get(['apiUrl', 'token']);
     return {
-        erpUrl: String(stored.erpUrl || '').replace(/\/+$/, ''),
+        apiUrl: String(stored.apiUrl || '').replace(/\/+$/, ''),
         token: String(stored.token || ''),
     };
 }
 
 /**
- * Calls the ERP's public API. Throws an Error whose message is Finnish copy
- * for the status box, with `status` set when the ERP answered.
+ * Calls the backend's public API. Throws an Error whose message is Finnish copy
+ * for the status box, with `status` set when the backend answered.
  */
-async function erp(method, path, body) {
+async function api(method, path, body) {
     var s = await settings();
-    if (!s.erpUrl || !s.token) {
-        throw new Error('Aseta ERP-osoite ja API-token laajennuksen asetuksista.');
+    if (!s.apiUrl || !s.token) {
+        throw new Error('Aseta taustajärjestelmän API-osoite ja API-token laajennuksen asetuksista.');
     }
-    var pattern = DVCSoftphone.originPattern(s.erpUrl);
+    var pattern = DVCSoftphone.originPattern(s.apiUrl);
     if (!pattern || !(await chrome.permissions.contains({ origins: [pattern] }))) {
-        throw new Error('Laajennukselta puuttuu lupa ERP:n osoitteeseen. Avaa laajennuksen asetukset, paina Tallenna ja valitse Salli.');
+        throw new Error('Laajennukselta puuttuu lupa taustajärjestelmän osoitteeseen. Avaa laajennuksen asetukset, paina Tallenna ja valitse Salli.');
     }
     var response;
     try {
-        response = await fetch(s.erpUrl + '/public-api/v1/customer-service/' + path, {
+        // apiUrl is the API's full base address, e.g. https://example.fi/api/calls
+        response = await fetch(s.apiUrl + '/' + path, {
             method: method,
             headers: {
                 Authorization: 'Bearer ' + s.token,
@@ -68,14 +69,14 @@ async function erp(method, path, body) {
             body: body === undefined ? undefined : JSON.stringify(body),
         });
     } catch (e) {
-        throw new Error('ERP ei vastaa.');
+        throw new Error('Taustajärjestelmä ei vastaa.');
     }
     var data = {};
     try { data = await response.json(); } catch (e) { /* An HTML error page carries nothing to show. */ }
     if (!response.ok) {
-        var message = response.status === 401 ? 'ERP hylkäsi API-tokenin.'
+        var message = response.status === 401 ? 'Taustajärjestelmä hylkäsi API-tokenin.'
             : response.status === 403 ? 'API-tokenilta puuttuu puheluiden oikeus.'
-            : (data.error || 'ERP vastasi virheellä (' + response.status + ').');
+            : (data.error || 'Taustajärjestelmä vastasi virheellä (' + response.status + ').');
         var error = new Error(message);
         error.status = response.status;
         throw error;
@@ -85,10 +86,10 @@ async function erp(method, path, body) {
 
 // --- Softphone state -------------------------------------------------------------
 //
-// The ERP is told what this browser can do about every 5 seconds while a DNA
+// The backend is told what this browser can do about every 5 seconds while a DNA
 // directory tab polls, and every 30 seconds otherwise (an alarm, which also
-// wakes this worker). The call tool shows it and refuses *Soita* while DNA is
-// not ready; a call whose softphone falls silent is settled by the ERP.
+// wakes this worker). The backend shows it and refuses to queue calls while DNA is
+// not ready; a call whose softphone falls silent is settled by the backend.
 
 var REPORT_MS = 5000;
 var HEARTBEAT_ALARM = 'dvc-softphone-heartbeat';
@@ -101,9 +102,9 @@ var microphone = null;
 /** DNA's call window did not open after the last dial. */
 var popupsBlocked = false;
 var lastReportAt = 0;
-/** The ERP's answer to the last report: {allowed, reasons, warnings}. */
+/** The backend's answer to the last report: {allowed, reasons, warnings}. */
 var lastSoftphone = null;
-/** A claim is on its way to the ERP; no second one starts meanwhile. */
+/** A claim is on its way to the backend; no second one starts meanwhile. */
 var claiming = false;
 
 chrome.alarms.create(HEARTBEAT_ALARM, { periodInMinutes: 0.5 });
@@ -137,7 +138,7 @@ async function heartbeat(force) {
         popupsBlocked: popupsBlocked,
     });
     try {
-        lastSoftphone = (await erp('POST', 'call-softphones/add', body)).softphone || null;
+        lastSoftphone = (await api('POST', 'call-softphones/add', body)).softphone || null;
     } catch (e) {
         lastSoftphone = null;
     }
@@ -161,7 +162,7 @@ function seeDirectoryTab(sender, message) {
         microphone = message.microphone || null;
         if (changed) {
             // Signing in or allowing the microphone shows in the DNA tab and
-            // the ERP at once, not at the next 15-second report.
+            // the backend at once, not at the next 15-second report.
             void heartbeat(true);
         }
     }
@@ -171,12 +172,12 @@ function seeDirectoryTab(sender, message) {
 /** The *Tarkista* checklist on the options page, from a fresh look at everything. */
 async function diagnose() {
     var s = await settings();
-    var erpError = null;
-    if (s.erpUrl && s.token) {
+    var apiError = null;
+    if (s.apiUrl && s.token) {
         try {
-            await erp('GET', 'calls/index');
+            await api('GET', 'calls/index');
         } catch (e) {
-            erpError = e.message;
+            apiError = e.message;
         }
         await heartbeat(true);
     }
@@ -184,8 +185,8 @@ async function diagnose() {
     var tabs = Object.keys(directoryTabs).length;
     return {
         lines: DVCSoftphone.diagnose({
-            settings: !!(s.erpUrl && s.token),
-            erp: erpError,
+            settings: !!(s.apiUrl && s.token),
+            backend: apiError,
             tabs: tabs,
             dialerReady: dialerReady,
             microphone: microphone,
@@ -211,12 +212,12 @@ chrome.runtime.onMessage.addListener(function (message, sender, reply) {
 //   → {type: 'incoming-ringing', number}   it started ringing here; answers {call_id}
 //   → {type: 'incoming-stopped', callId}   it stopped ringing here, unanswered
 //   ← {type: 'answer-incoming', callId}    sent to that tab: answer in DNA now
-//                                          (the employee pressed Vastaa in the ERP)
+//                                          (the employee answered in the backend)
 //   ← {type: 'answered-elsewhere', callId, name}  a colleague took it
 //
 // Answering in DNA needs no message: DNA opens its call window, which binds to
 // the reported call exactly as to a dialled one, and its "connected" is the
-// answer the ERP records (the first softphone to answer gets the call).
+// answer the backend records (the first softphone to answer gets the call).
 
 var RING_WATCH_MS = 2000;
 /** Calls ringing on this softphone, by id. */
@@ -224,7 +225,7 @@ var ringing = {};
 var ringTimer = null;
 
 async function reportRinging(number, tabId) {
-    var result = await erp('POST', 'calls/add', { phone_number: number, direction: 'incoming' });
+    var result = await api('POST', 'calls/add', { phone_number: number, direction: 'incoming' });
     var call = result.call;
     ringing[call.id] = { call: call, tabId: tabId, askedToAnswer: false, windowBound: false };
     if (!session && !claimed) {
@@ -243,7 +244,7 @@ async function reportStopped(callId) {
         return { ok: true };
     }
     forgetRinging(callId);
-    try { await erp('POST', 'calls/edit/' + callId, { status: 'missed' }); } catch (e) { /* answered elsewhere meanwhile */ }
+    try { await api('POST', 'calls/edit/' + callId, { status: 'missed' }); } catch (e) { /* answered elsewhere meanwhile */ }
     return { ok: true };
 }
 
@@ -267,7 +268,7 @@ async function watchRinging() {
         }
         var call = null;
         try {
-            call = (await erp('GET', 'calls/view/' + ids[i])).call;
+            call = (await api('GET', 'calls/view/' + ids[i])).call;
         } catch (e) {
             if (e.status !== 404) {
                 continue; // a missed check is retried on the next tick
@@ -280,7 +281,7 @@ async function watchRinging() {
         } else if (next === 'answered-elsewhere') {
             chrome.tabs.sendMessage(entry.tabId, { type: 'answered-elsewhere', callId: Number(ids[i]), name: call.user_name }).catch(function () {});
             forgetRinging(ids[i]);
-            erp('POST', 'calls/edit/' + ids[i], { status: 'missed' }).catch(function () {});
+            api('POST', 'calls/edit/' + ids[i], { status: 'missed' }).catch(function () {});
         } else if (next === 'gone') {
             forgetRinging(ids[i]);
         }
@@ -348,18 +349,18 @@ async function handle(message, sender) {
             // An incoming call nobody answered here is settled by its ring
             // reports (incoming-stopped), not as a failed dial.
             if (!abandoned.incoming) {
-                try { await erp('POST', 'calls/edit/' + abandoned.call.id, { status: 'failed' }); } catch (e) { /* already moved on */ }
+                try { await api('POST', 'calls/edit/' + abandoned.call.id, { status: 'failed' }); } catch (e) { /* already moved on */ }
             }
         }
         if (session || (claimed && !claimed.window)) {
             return { calls: [], softphone: lastSoftphone };
         }
-        return { calls: (await erp('GET', 'calls/index')).calls || [], softphone: lastSoftphone };
+        return { calls: (await api('GET', 'calls/index')).calls || [], softphone: lastSoftphone };
     }
     if (message.type === 'claim') {
         // One call at a time, from the dialling tab only. The flag is set before
-        // the ERP is asked, so a second claim arriving meanwhile is refused here;
-        // the ERP refuses a second claim of the same call from another browser.
+        // the backend is asked, so a second claim arriving meanwhile is refused here;
+        // the backend refuses a second claim of the same call from another browser.
         if (claiming || session || (claimed && !claimed.window)) {
             throw new Error('Toinen puhelu on jo valinnassa.');
         }
@@ -368,7 +369,7 @@ async function handle(message, sender) {
         }
         claiming = true;
         try {
-            var result = await erp('POST', 'calls/edit/' + message.call.id, { status: 'dialing' });
+            var result = await api('POST', 'calls/edit/' + message.call.id, { status: 'dialing' });
             claimed = { call: result.call, at: Date.now(), window: false };
         } finally {
             claiming = false;
@@ -413,7 +414,7 @@ chrome.runtime.onConnect.addListener(function (port) {
             return;
         }
         if (message.type === 'close-window' && mine && mine.finished && port.sender && port.sender.tab) {
-            // Only a window this worker bound to an ERP call, and only once the
+            // Only a window this worker bound to a backend call, and only once the
             // call has finished. The transcript flush goes on without the tab.
             chrome.tabs.remove(port.sender.tab.id).catch(function () { /* closed already */ });
             return;
@@ -442,7 +443,7 @@ chrome.runtime.onConnect.addListener(function (port) {
             void sendListenOffer(mine, message.id, message.sdp);
         } else if (message.type === 'listen-failed') {
             mine.listen[message.id] = 'ended';
-            erp('POST', 'call-listen-sessions/edit/' + message.id, { status: 'ended' }).catch(function () {});
+            api('POST', 'call-listen-sessions/edit/' + message.id, { status: 'ended' }).catch(function () {});
         }
     });
 
@@ -460,7 +461,7 @@ async function connect(s) {
     s.watchTimer = setInterval(function () { void watchCall(s); }, WATCH_MS);
     s.usageTimer = setInterval(function () { void reportUsage(s); }, USAGE_MS);
     try {
-        var result = await erp('POST', 'calls/edit/' + s.call.id, { status: 'connected' });
+        var result = await api('POST', 'calls/edit/' + s.call.id, { status: 'connected' });
         if (result.agent) {
             openAgent(s, result.agent);
             s.port.postMessage({ type: 'agent-started', sample_rate: result.agent.sample_rate });
@@ -547,7 +548,7 @@ async function onToolCall(s, message) {
 
     if (message.name === 'save_note') {
         try {
-            await erp('POST', 'messages/add', { call_id: s.call.id, text: String(args.text || '') });
+            await api('POST', 'messages/add', { call_id: s.call.id, text: String(args.text || '') });
         } catch (e) {
             output = { ok: false, error: e.message };
         }
@@ -575,7 +576,7 @@ function sendAgent(s, event) {
 
 /**
  * The employee took the call over: the agent goes quiet for good. `report`
- * tells the ERP when the take-over came from the call window.
+ * tells the backend when the take-over came from the call window.
  */
 async function stopAgent(s, report) {
     if (s.agentStopped || !s.agent) {
@@ -585,7 +586,7 @@ async function stopAgent(s, report) {
     sendAgent(s, { type: 'response.cancel' });
     try { s.agent.socket.close(1000); } catch (e) { /* already closed */ }
     if (report) {
-        try { await erp('POST', 'calls/edit/' + s.call.id, { agent_stopped: true }); } catch (e) { /* the panel shows the old state until the next check */ }
+        try { await api('POST', 'calls/edit/' + s.call.id, { agent_stopped: true }); } catch (e) { /* the panel shows the old state until the next check */ }
     }
 }
 
@@ -629,7 +630,7 @@ function open(s, channel, transcription) {
     };
 }
 
-/** A stream dropped mid-call: ask the ERP for a fresh key and open it again. */
+/** A stream dropped mid-call: ask the backend for a fresh key and open it again. */
 async function reopen(s, channel) {
     if (s.reopens >= MAX_REOPENS) {
         s.port.postMessage({ type: 'error', error: 'Litterointiyhteys katkesi.' });
@@ -637,7 +638,7 @@ async function reopen(s, channel) {
     }
     s.reopens++;
     try {
-        var result = await erp('POST', 'calls/edit/' + s.call.id, { status: 'connected' });
+        var result = await api('POST', 'calls/edit/' + s.call.id, { status: 'connected' });
         if (result.transcription && !s.finished && !s.stopped) {
             open(s, channel, result.transcription);
         }
@@ -672,10 +673,10 @@ async function flush(s) {
     s.flushing = true;
     var batch = s.collector.take(100);
     try {
-        await erp('POST', 'call-transcript-segments/add', { call_id: s.call.id, segments: batch });
+        await api('POST', 'call-transcript-segments/add', { call_id: s.call.id, segments: batch });
     } catch (e) {
         if (e.status === 422) {
-            stopTranscription(s, 'litterointi lopetettu ERP:ssä.');
+            stopTranscription(s, 'litterointi lopetettu taustajärjestelmässä.');
         } else {
             s.collector.putBack(batch);
         }
@@ -690,19 +691,19 @@ async function reportUsage(s) {
         return;
     }
     try {
-        await erp('POST', 'call-usages/add', { call_id: s.call.id, usages: usages });
+        await api('POST', 'call-usages/add', { call_id: s.call.id, usages: usages });
     } catch (e) {
         // Totals are cumulative: the next report carries what this one missed.
     }
 }
 
 /**
- * Notices, every couple of seconds, what was pressed in the ERP: *Lopeta
+ * Notices, every couple of seconds, what was pressed in the backend: *Lopeta
  * puhelu*, *Ota puhelu*, *Lopeta litterointi*.
  */
 async function watchCall(s) {
     try {
-        var result = await erp('GET', 'calls/view/' + s.call.id);
+        var result = await api('GET', 'calls/view/' + s.call.id);
         var call = result.call;
         if (!call || s.finished) {
             return;
@@ -716,7 +717,7 @@ async function watchCall(s) {
             void stopAgent(s, false);
         }
         if (!s.agent && !call.transcription_enabled) {
-            stopTranscription(s, 'litterointi lopetettu ERP:ssä.');
+            stopTranscription(s, 'litterointi lopetettu taustajärjestelmässä.');
         }
         await watchListeners(s);
     } catch (e) {
@@ -725,13 +726,13 @@ async function watchCall(s) {
 }
 
 /**
- * Colleagues listening in from Asiakkuudet › Palvelutapahtumat. For each new request
+ * Colleagues listening in through the backend. For each new request
  * the call window makes a WebRTC offer; the listener's answer is handed back
  * to it; an ended session is closed. The audio goes from the call window
  * straight to the listener, never through here.
  */
 async function watchListeners(s) {
-    var result = await erp('GET', 'call-listen-sessions/index?call_id=' + s.call.id);
+    var result = await api('GET', 'call-listen-sessions/index?call_id=' + s.call.id);
     DVCListen.plan(result.sessions || [], s.listen).forEach(function (step) {
         s.listen[step.id] = DVCListen.AFTER[step.action];
         if (step.action === 'offer') {
@@ -746,7 +747,7 @@ async function watchListeners(s) {
 
 async function sendListenOffer(s, id, sdp) {
     try {
-        await erp('POST', 'call-listen-sessions/edit/' + id, { offer_sdp: sdp });
+        await api('POST', 'call-listen-sessions/edit/' + id, { offer_sdp: sdp });
         s.listen[id] = 'offered';
     } catch (e) {
         s.listen[id] = 'ended';
@@ -799,9 +800,9 @@ async function finish(s, status) {
     }
     await reportUsage(s);
     try {
-        await erp('POST', 'calls/edit/' + s.call.id, { status: status });
+        await api('POST', 'calls/edit/' + s.call.id, { status: status });
     } catch (e) {
-        // The ERP refuses a move the call has already made; nothing to undo here.
+        // The backend refuses a move the call has already made; nothing to undo here.
     }
     if (session === s) {
         session = null;

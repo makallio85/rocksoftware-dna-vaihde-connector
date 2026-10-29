@@ -15,7 +15,7 @@
  * microphone and silences the AI.
  *
  * Audio leaves the page as PCM chunks posted to the extension's isolated
- * content script, and to colleagues listening in from the ERP over a direct
+ * content script, and to colleagues listening in from the backend over a direct
  * WebRTC connection the page itself opens. Nothing is stored.
  */
 (function () {
@@ -192,7 +192,7 @@
 
     // --- Listening in ----------------------------------------------------------
 
-    /** Colleagues listening in from the ERP, by session id. */
+    /** Colleagues listening in from the backend, by session id. */
     var listeners = {};
     /** Candidates still gathering after this are not waited for. */
     var ICE_WAIT_MS = 3000;

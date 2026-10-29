@@ -1,10 +1,10 @@
 /*
  * Collects the final lines Speechmatics sends for one call and hands them to
- * the ERP in batches.
+ * the backend in batches.
  *
  * Each side of the call is its own stream, so the channel is known from the
  * stream a message came in on. A line keeps its sequence number for good: a
- * batch that failed to post is sent again with the same numbers, and the ERP
+ * batch that failed to post is sent again with the same numbers, and the backend
  * stores each (channel, sequence) once.
  *
  * Classic script for the service worker (importScripts) and Node tests.

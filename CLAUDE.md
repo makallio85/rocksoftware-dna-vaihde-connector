@@ -16,7 +16,7 @@ This repository is public. Never commit:
 
 - real phone numbers, names of real people, or customer data. Use made-up
   test data (e.g. `0401234567`, "Matti Meikäläinen");
-- ERP addresses, preview/staging addresses, company names, issue or PR numbers
+- backend or preview/staging addresses, company or product names, issue or PR numbers
   of private repositories;
 - tokens, keys or passwords;
 - screenshots that show any of the above.
@@ -30,3 +30,11 @@ The only personal data allowed is the commit author's name and email.
   are unit-tested in `test/shared.test.js` (`npm test`, or Node in Docker).
 - User-facing text is Finnish.
 - Internal names use the `dvc-` / `DVC` prefix.
+
+## Generic, not tied to one backend
+
+The extension works with any backend that provides the API in the README.
+Never name a specific backend, ERP or its menus, permissions or API paths in
+code, UI text or docs. In Finnish UI text the backend is
+"taustajärjestelmä"; in English code and docs "the backend". The API address
+is the full base address the user enters.

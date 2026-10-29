@@ -1,9 +1,9 @@
 /*
- * Listening in on a live call, decided per session from what the ERP says and
+ * Listening in on a live call, decided per session from what the backend says and
  * what this call window has done so far. Pure, so it is tested without a
  * browser (test/shared.test.js).
  *
- * The ERP's session statuses: requested → offered → answered → ended.
+ * The backend's session statuses: requested → offered → answered → ended.
  * What the window has done, per session id: 'offering' (asked the page for an
  * offer), 'offered' (posted it), 'answered' (applied the listener's answer),
  * 'ended'.

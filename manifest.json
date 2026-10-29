@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "DNA Vaihde Connector",
-  "version": "0.8.0",
-  "description": "Yhdistää DNA Vaihteen ERP:iin: soittaa ERP:ssä jonotetut puhelut, tuo saapuvat puhelut ERP:iin ja litteroi puhelut. Ääntä ei tallenneta.",
+  "version": "0.9.0",
+  "description": "Yhdistää DNA Vaihteen taustajärjestelmään: soittaa jonotetut puhelut, tuo saapuvat puhelut taustajärjestelmään ja litteroi puhelut. Ääntä ei tallenneta.",
   "minimum_chrome_version": "116",
   "permissions": ["storage", "alarms"],
   "host_permissions": [

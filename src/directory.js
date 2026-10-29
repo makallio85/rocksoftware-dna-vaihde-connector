@@ -1,8 +1,8 @@
 /*
  * The DNA directory (vaihde.dna.fi/cwp/…), isolated world.
  *
- * While the directory is open it asks the ERP, through the service worker,
- * every couple of seconds for calls the signed-in employee queued from a case.
+ * While the directory is open it asks the backend, through the service worker,
+ * every couple of seconds for calls queued for the signed-in employee.
  * A queued call is claimed (reported as dialling) and typed into DNA's own
  * dialler, whose Call button opens DNA's call window — exactly as if the
  * employee had typed it.
@@ -14,8 +14,8 @@
  * Only one directory tab dials: the service worker names the oldest one open,
  * and any other says so and stays idle. Each poll also tells the worker whether
  * DNA's dial input is on screen and whether the microphone is allowed, which it
- * reports to the ERP; the ERP's answer (ready, or what is wrong) is the status
- * line, the same reasons the ERP's Puhelut panel gives. While the ERP does not
+ * reports to the backend; the backend's answer (ready, or what is wrong) is the status
+ * line, the same reasons the backend shows. While the backend does not
  * answer, polls slow down to one every 30 seconds.
  */
 (function () {
@@ -35,10 +35,10 @@
     var microphone = null;
     var panel = null;
     var holdUntil = 0;
-    /** What the ERP said about this softphone in the last poll. */
+    /** What the backend said about this softphone in the last poll. */
     var softphone = null;
 
-    /** The resting status: ready, or what the ERP says is wrong. */
+    /** The resting status: ready, or what the backend says is wrong. */
     function showStatus() {
         var s = DVCSoftphone.status(softphone);
         show(s.text, s.tone);
@@ -46,7 +46,7 @@
 
     /**
      * `error` is something that just went wrong here and stays a while; a
-     * `problem` comes from the ERP and clears as soon as the ERP stops saying it.
+     * `problem` comes from the backend and clears as soon as the backend stops saying it.
      */
     function show(text, tone) {
         holdUntil = tone === 'error' ? Date.now() + ERROR_HOLD_MS : 0;
@@ -187,7 +187,7 @@
 
     var RING_TICK_MS = 300;
     var ringWatcher = new DVCRingScreen.Watcher();
-    /** The ERP's id for the call ringing now, once reported. */
+    /** The backend's id for the call ringing now, once reported. */
     var ringingCallId = null;
     /** Whether this tab dials and reports; null until the first poll answers. */
     var primary = null;
@@ -220,16 +220,16 @@
         if (moment.event === 'ringing') {
             ringingCallId = null;
             if (!moment.number) {
-                show('Saapuva puhelu piilotetusta numerosta – se ei näy ERP:ssä. Vastaa DNA:ssa.', 'warning');
+                show('Saapuva puhelu piilotetusta numerosta – se ei näy taustajärjestelmässä. Vastaa DNA:ssa.', 'warning');
                 return;
             }
             var result = await ask({ type: 'incoming-ringing', number: moment.number });
             if (result.error) {
-                show('Saapuvaa puhelua ' + moment.number + ' ei saatu ERP:hen: ' + result.error, 'error');
+                show('Saapuvaa puhelua ' + moment.number + ' ei saatu taustajärjestelmään: ' + result.error, 'error');
                 return;
             }
             ringingCallId = result.call_id;
-            show('Saapuva puhelu ' + moment.number + ' – vastaa DNA:ssa tai ERP:ssä.');
+            show('Saapuva puhelu ' + moment.number + ' – vastaa DNA:ssa tai taustajärjestelmässä.');
         } else if (moment.event === 'stopped' && ringingCallId !== null) {
             var callId = ringingCallId;
             ringingCallId = null;
@@ -258,7 +258,7 @@
         watchRing().finally(function () { ringBusy = false; });
     }, RING_TICK_MS);
 
-    /** *Vastaa* in the ERP: press DNA's green answer button, never the red one. */
+    /** Answered in the backend: press DNA's green answer button, never the red one. */
     function answerInDna(callId) {
         if (callId !== ringingCallId) {
             return;
@@ -313,8 +313,8 @@
                     await dial(response.calls[0]);
                 } else if (Date.now() > holdUntil && !ringWatcher.active) {
                     // Always on screen, so the employee can see the extension is
-                    // running and connected before pressing Soita in the ERP,
-                    // with the same reasons the ERP's Puhelut panel gives.
+                    // running and connected before a call is queued in the backend,
+                    // with the same reasons the backend shows.
                     showStatus();
                 }
             } finally {
@@ -325,7 +325,7 @@
     }
 
     // The microphone permission of vaihde.dna.fi, reported with each poll so the
-    // ERP can say when it is blocked.
+    // backend can say when it is blocked.
     if (navigator.permissions) {
         navigator.permissions.query({ name: 'microphone' }).then(function (status) {
             microphone = status.state;

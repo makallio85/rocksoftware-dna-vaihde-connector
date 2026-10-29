@@ -3,8 +3,8 @@
  * (test/shared.test.js):
  *
  *  - which DNA directory tab dials, when several are open;
- *  - how long to wait before asking the ERP again after it failed to answer;
- *  - the state reported to the ERP every 5 seconds;
+ *  - how long to wait before asking the backend again after it failed to answer;
+ *  - the state reported to the backend every 5 seconds;
  *  - the checklist the options page's *Tarkista* shows.
  */
 (function (global) {
@@ -40,7 +40,7 @@
 
     /**
      * The wait before the next poll: 2 s normally; after failures 4, 8, 16 and
-     * at most 30 s, so an unreachable ERP is not asked every 2 seconds by every
+     * at most 30 s, so an unreachable backend is not asked every 2 seconds by every
      * employee's browser.
      *
      * @param {number} failures Failed polls in a row.
@@ -75,9 +75,9 @@
      * The *Tarkista* checklist: each line ok, a warning or a problem, with what
      * to do about it.
      *
-     * @param {{settings: boolean, erp: ?string, tabs: number, dialerReady: ?boolean,
+     * @param {{settings: boolean, backend: ?string, tabs: number, dialerReady: ?boolean,
      *          microphone: ?string, popupsBlocked: boolean, softphone: ?Object}} s
-     *   `erp` is null when the ERP answered, otherwise its error.
+     *   `backend` is null when the backend answered, otherwise its error.
      * @returns {Array<{label: string, tone: 'ok'|'warning'|'error', detail: string}>}
      */
     function diagnose(s) {
@@ -85,11 +85,11 @@
         function line(label, tone, detail) { lines.push({ label: label, tone: tone, detail: detail }); }
 
         if (!s.settings) {
-            line('ERP-yhteys', 'error', 'Aseta ERP:n osoite ja oma API-token yllä.');
-        } else if (s.erp) {
-            line('ERP-yhteys', 'error', s.erp);
+            line('Taustajärjestelmä', 'error', 'Aseta taustajärjestelmän API-osoite ja oma API-token yllä.');
+        } else if (s.backend) {
+            line('Taustajärjestelmä', 'error', s.backend);
         } else {
-            line('ERP-yhteys', 'ok', 'ERP vastaa ja hyväksyy tokenin.');
+            line('Taustajärjestelmä', 'ok', 'Taustajärjestelmä vastaa ja hyväksyy tokenin.');
         }
 
         if (s.tabs === 0) {
@@ -133,17 +133,17 @@
     }
 
     /**
-     * The DNA tab's status line, from the ERP's answer to the last report: the
-     * same reasons and warnings the ERP's Puhelut panel shows. Problems come
+     * The DNA tab's status line, from the backend's answer to the last report: the
+     * same reasons and warnings the backend shows. Problems come
      * first; warnings show only when nothing blocks calls.
      *
      * @param {?{allowed: boolean, reasons: Array<{message: string}>, warnings: Array<{message: string}>}} softphone
-     *   null until the ERP has answered a report.
+     *   null until the backend has answered a report.
      * @returns {{text: string, tone: 'ok'|'warning'|'problem'}}
      */
     function status(softphone) {
         if (!softphone) {
-            return { text: 'yhteys ERP:iin kunnossa, odotetaan puheluita.', tone: 'ok' };
+            return { text: 'yhteys taustajärjestelmään kunnossa, odotetaan puheluita.', tone: 'ok' };
         }
         function messages(list) {
             return (list || []).map(function (item) { return item.message; }).join(' ');
@@ -158,17 +158,17 @@
     }
 
     /**
-     * The host permission the ERP address needs. No ERP address is built into
+     * The host permission the backend address needs. No backend address is built into
      * the extension: the options page asks the browser for this one when the
      * address is saved. Chrome's patterns carry no port.
      *
-     * @param {string} erpUrl
-     * @returns {?string} e.g. "https://erp.example.fi/*"; null if not a valid address.
+     * @param {string} apiUrl
+     * @returns {?string} e.g. "https://api.example.fi/*"; null if not a valid address.
      */
-    function originPattern(erpUrl) {
+    function originPattern(apiUrl) {
         var url;
         try {
-            url = new URL(erpUrl);
+            url = new URL(apiUrl);
         } catch (e) {
             return null;
         }

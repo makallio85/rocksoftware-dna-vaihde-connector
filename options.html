@@ -20,17 +20,17 @@
 </head>
 <body>
     <h1>DNA Vaihde Connector</h1>
-    <p>Laajennus soittaa ERP:ssä jonotetut puhelut DNA Vaihteella, tuo saapuvat puhelut ERP:iin ja
-        litteroi puhelut. Ääntä ei tallenneta.</p>
+    <p>Laajennus yhdistää DNA Vaihteen taustajärjestelmään: se soittaa taustajärjestelmässä jonotetut
+        puhelut, tuo saapuvat puhelut taustajärjestelmään ja litteroi puhelut. Ääntä ei tallenneta.</p>
 
-    <label for="erpUrl">ERP:n osoite</label>
-    <input id="erpUrl" type="url" placeholder="https://erp.example.fi">
-    <div class="hint">Kun tallennat, selain kysyy luvan tähän osoitteeseen – valitse Salli.</div>
+    <label for="apiUrl">Taustajärjestelmän API-osoite</label>
+    <input id="apiUrl" type="url" placeholder="https://example.fi/api/calls">
+    <div class="hint">Saat osoitteen taustajärjestelmän ylläpitäjältä. Kun tallennat, selain kysyy luvan
+        tähän osoitteeseen – valitse Salli.</div>
 
     <label for="token">Oma API-token</label>
     <input id="token" type="password" autocomplete="off" placeholder="Ei tallennettua tokenia">
-    <div class="hint">Tehdään ERP:ssä kohdassa Hallinta › API-tokenit sinun käyttäjällesi, oikeuksin
-        <code>customer_service.calls.read</code> ja <code>customer_service.calls.write</code>. Jätä tyhjäksi, jos et vaihda sitä.</div>
+    <div class="hint">Taustajärjestelmän sinulle antama token. Jätä tyhjäksi, jos et vaihda sitä.</div>
 
     <div class="actions">
         <button id="save" type="button">Tallenna</button>

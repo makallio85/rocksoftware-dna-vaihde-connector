@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var erpUrl = document.getElementById('erpUrl');
+    var apiUrl = document.getElementById('apiUrl');
     var token = document.getElementById('token');
     var status = document.getElementById('status');
 
@@ -10,22 +10,22 @@
         status.className = tone || '';
     }
 
-    chrome.storage.local.get(['erpUrl', 'token']).then(function (stored) {
-        erpUrl.value = stored.erpUrl || '';
+    chrome.storage.local.get(['apiUrl', 'token']).then(function (stored) {
+        apiUrl.value = stored.apiUrl || '';
         token.placeholder = stored.token ? 'Tallennettu (••••' + String(stored.token).slice(-4) + ')' : 'Ei tallennettua tokenia';
     });
 
     document.getElementById('save').addEventListener('click', async function () {
-        var url = erpUrl.value.trim().replace(/\/+$/, '');
+        var url = apiUrl.value.trim().replace(/\/+$/, '');
         var pattern = url ? DVCSoftphone.originPattern(url) : null;
         if (url && !pattern) {
             say('Osoitteen pitää alkaa https://', 'error');
             return;
         }
-        // No ERP address is built in: the browser asks the user to allow this
+        // No backend address is built in: the browser asks the user to allow this
         // one. Asked first, while the click still counts as the user's.
         var allowed = pattern ? await chrome.permissions.request({ origins: [pattern] }) : true;
-        var update = { erpUrl: url };
+        var update = { apiUrl: url };
         if (token.value.trim() !== '') {
             update.token = token.value.trim();
         }
@@ -36,7 +36,7 @@
         if (allowed) {
             say('Tallennettu.', 'ok');
         } else {
-            say('Tallennettu, mutta laajennus ei saa yhteyttä ERP:iin ilman lupaa. Paina Tallenna uudelleen ja valitse Salli.', 'error');
+            say('Tallennettu, mutta laajennus ei saa yhteyttä taustajärjestelmään ilman lupaa. Paina Tallenna uudelleen ja valitse Salli.', 'error');
         }
     });
 
@@ -87,7 +87,7 @@
             } else if (response.error) {
                 say(response.error, 'error');
             } else {
-                say('Yhteys ERP:iin toimii.', 'ok');
+                say('Yhteys taustajärjestelmään toimii.', 'ok');
             }
         });
     });

@@ -104,7 +104,7 @@ test('text lines from the AI session go on the same timeline', () => {
     ]);
 });
 
-test('usage is counted in the units the ERP prices', () => {
+test('usage is counted in the units the backend prices', () => {
     const meter = new DVCUsage.Meter();
     meter.addSpeechmaticsBytes(32000 * 90);   // 90 s at 16 kHz
     meter.addOpenAiAudioBytes(48000 * 30);    // 30 s at 24 kHz
@@ -148,7 +148,7 @@ test('an ended session is closed only if this window opened it', () => {
     assert.deepEqual(plain(DVCListen.plan(sessions, { 4: 'ended' })), []);
 });
 
-test('Vastaa in the ERP makes DNA answer, once', () => {
+test('answering in the backend makes DNA answer, once', () => {
     const call = { status: 'connected', is_mine: true };
     assert.equal(DVCIncoming.decide({}, call), 'answer-in-dna');
     assert.equal(DVCIncoming.decide({ askedToAnswer: true }, call), 'wait');
@@ -175,7 +175,7 @@ test('the oldest open DNA tab dials, and a tab that stopped polling is forgotten
     assert.equal(DVCSoftphone.primaryTab({}, 0), null);
 });
 
-test('polling backs off while the ERP does not answer, and comes back to two seconds', () => {
+test('polling backs off while the backend does not answer, and comes back to two seconds', () => {
     assert.deepEqual([0, 1, 2, 3, 4, 5, 9].map(DVCSoftphone.backoff), [2000, 4000, 8000, 16000, 30000, 30000, 30000]);
 });
 
@@ -193,20 +193,20 @@ test('the report says whether DNA is open, signed in and allowed the microphone'
 
 test('Tarkista names each problem and what to do', () => {
     const lines = plain(DVCSoftphone.diagnose({
-        settings: true, erp: 'ERP hylkäsi API-tokenin.', tabs: 2, dialerReady: false, microphone: 'denied', popupsBlocked: true,
+        settings: true, backend: 'Taustajärjestelmä hylkäsi API-tokenin.', tabs: 2, dialerReady: false, microphone: 'denied', popupsBlocked: true,
         softphone: { warnings: [{ code: 'token_expiring', message: 'Token vanhenee 01.11.2026.' }, { code: 'dna_tabs', message: 'x' }] },
     }));
     const tones = Object.fromEntries(lines.map((l) => [l.label, l.tone]));
     assert.deepEqual(tones, {
-        'ERP-yhteys': 'error', 'DNA-vaihde': 'warning', 'DNA-kirjautuminen': 'error', Mikrofoni: 'error', Ponnahdusikkunat: 'error', 'API-token': 'warning',
+        'Taustajärjestelmä': 'error', 'DNA-vaihde': 'warning', 'DNA-kirjautuminen': 'error', Mikrofoni: 'error', Ponnahdusikkunat: 'error', 'API-token': 'warning',
     });
-    const fine = plain(DVCSoftphone.diagnose({ settings: true, erp: null, tabs: 1, dialerReady: true, microphone: 'granted', popupsBlocked: false, softphone: null }));
+    const fine = plain(DVCSoftphone.diagnose({ settings: true, backend: null, tabs: 1, dialerReady: true, microphone: 'granted', popupsBlocked: false, softphone: null }));
     assert.ok(fine.every((l) => l.tone === 'ok'));
     assert.equal(plain(DVCSoftphone.diagnose({ settings: false, tabs: 0 }))[1].detail, 'Avaa vaihde.dna.fi ja sen Yhteystiedot-näkymä.');
 });
 
-test('the DNA tab shows what the ERP says about the softphone', () => {
-    assert.deepEqual(plain(DVCSoftphone.status(null)), { text: 'yhteys ERP:iin kunnossa, odotetaan puheluita.', tone: 'ok' },
+test('the DNA tab shows what the backend says about the softphone', () => {
+    assert.deepEqual(plain(DVCSoftphone.status(null)), { text: 'yhteys taustajärjestelmään kunnossa, odotetaan puheluita.', tone: 'ok' },
         'before the first report is answered');
     assert.deepEqual(plain(DVCSoftphone.status({ allowed: true, reasons: [], warnings: [] })), { text: 'valmis, odotetaan puheluita.', tone: 'ok' });
     assert.deepEqual(plain(DVCSoftphone.status({
@@ -303,11 +303,11 @@ test('a missed call is reported within half a second of DNA closing its pop-up',
     assert.ok(DVCRingScreen.STOP_GRACE_MS <= 500);
 });
 
-test('the ERP address becomes the host permission the browser is asked for', () => {
-    assert.equal(DVCSoftphone.originPattern('https://erp.example.fi'), 'https://erp.example.fi/*');
-    assert.equal(DVCSoftphone.originPattern('https://erp.example.fi:8443/path/'), 'https://erp.example.fi/*', 'no port in patterns');
+test('the backend address becomes the host permission the browser is asked for', () => {
+    assert.equal(DVCSoftphone.originPattern('https://api.example.fi'), 'https://api.example.fi/*');
+    assert.equal(DVCSoftphone.originPattern('https://api.example.fi:8443/path/'), 'https://api.example.fi/*', 'no port in patterns');
     assert.equal(DVCSoftphone.originPattern('http://localhost:8765'), 'http://localhost/*');
-    assert.equal(DVCSoftphone.originPattern('http://erp.example.fi'), null, 'plain http only for localhost');
-    assert.equal(DVCSoftphone.originPattern('erp.example.fi'), null);
+    assert.equal(DVCSoftphone.originPattern('http://api.example.fi'), null, 'plain http only for localhost');
+    assert.equal(DVCSoftphone.originPattern('api.example.fi'), null);
     assert.equal(DVCSoftphone.originPattern(''), null);
 });

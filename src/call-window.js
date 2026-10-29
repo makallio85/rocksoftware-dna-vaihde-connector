@@ -2,10 +2,10 @@
  * The DNA call window (vaihde.dna.fi/join/main/…), isolated world.
  *
  * Asks the service worker whether this window belongs to a call queued from the
- * ERP. If it does, it watches the window for the call connecting and ending,
+ * backend. If it does, it watches the window for the call connecting and ending,
  * starts and stops the page capture accordingly, relays audio between the page
  * and the service worker, and carries out hang-up and take-over. A call nobody
- * queued from the ERP is left alone.
+ * queued from the backend is left alone.
  */
 (function () {
     'use strict';
@@ -159,7 +159,7 @@
             case 'call':
                 call = message.call;
                 show((call.ai_agent ? 'tekoälypuhelu ' : (call.direction === 'incoming' ? 'saapuva puhelu ' : 'puhelu '))
-                    + call.phone_number + (call.event_id ? ' (tapaus #' + call.event_id + ').' : '.'));
+                    + call.phone_number + '.');
                 watchTimer = setInterval(watch, WATCH_MS);
                 break;
             case 'transcribing':
@@ -203,7 +203,7 @@
             case 'error':
                 show(message.error, 'error');
                 break;
-            // A colleague listening in from the ERP: the page builds the
+            // A colleague listening in from the backend: the page builds the
             // connection, since only it holds the call's audio.
             case 'listen-offer':
                 toPage('listen-start', { id: message.id, iceServers: message.ice_servers || [] });

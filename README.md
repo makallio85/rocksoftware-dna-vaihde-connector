@@ -1,23 +1,21 @@
 # DNA Vaihde Connector
 
 Chrome/Edge extension (Manifest V3) that connects the DNA Vaihde softphone
-(vaihde.dna.fi) to an ERP through the ERP's public API:
+(vaihde.dna.fi) to a backend system of your own through a small HTTP API:
 
-1. An employee presses **Soita** in the ERP. The extension, running in DNA,
-   picks the call up, types the number into DNA's dialler and presses Call.
-2. A call that rings in DNA rings in the ERP too. The employee answers in DNA
-   or with **Vastaa** in the ERP.
-3. While a call is connected, both sides (the employee's microphone and the
-   customer's voice) stream to Speechmatics (EU) as two streams, and the
-   transcript lines go to the ERP live.
+1. **Click-to-call:** the backend queues a call; the extension, running in
+   DNA, picks it up, types the number into DNA's dialler and presses Call.
+2. **Incoming calls:** a call that rings in DNA is reported to the backend, so
+   it can ring there too. The employee answers in DNA, or the backend asks the
+   extension to answer.
+3. **Live transcription:** while a call is connected, both sides (the
+   employee's microphone and the caller's voice) stream to Speechmatics (EU)
+   as two streams, and the transcript lines go to the backend live.
 
-**Audio is never stored**, not by the extension and not by the ERP. The ERP
-keeps the transcript text only.
+**Audio is never stored** by the extension. The extension does nothing without
+an API address and an API token issued by the backend.
 
-The extension does nothing without an ERP address and an API token issued by
-that ERP.
-
-## Asennus ja päivitys (henkilöstölle)
+## Asennus ja päivitys (käyttäjille)
 
 ### Asennus
 
@@ -29,8 +27,8 @@ that ERP.
    **Developer mode / Kehittäjätila** päälle ja valitse **Load unpacked /
    Lataa pakkaamaton** → valitse purettu kansio (se, jossa on `manifest.json`).
 4. Avaa laajennuksen **Details → Extension options**:
-   - **ERP:n osoite** ja **oma API-token** (ERP:ssä Hallinta › API-tokenit,
-     oikeudet `customer_service.calls.read` ja `customer_service.calls.write`).
+   - **Taustajärjestelmän API-osoite** ja **oma API-token** – saat ne
+     taustajärjestelmän ylläpitäjältä.
    - Paina **Tallenna** ja valitse selaimen kysymykseen **Salli**.
    - **Tarkista** kertoo, onko kaikki kunnossa ja mitä tehdä, jos ei ole.
 5. Salli ponnahdusikkunat osoitteelle `https://vaihde.dna.fi`
@@ -45,14 +43,12 @@ that ERP.
 2. `chrome://extensions` → laajennuksen **päivitä-kuvake** (↻).
 3. Lataa DNA:n välilehti uudelleen, kun puhelua ei ole käynnissä.
 
-ERP näyttää varoituksen, jos laajennuksen versio on vanhentunut.
-
 ## Releases
 
 **Every version that reaches users must be a GitHub Release with its zip.**
 
 1. Raise `version` in `manifest.json` (and `package.json`).
-2. Commit, then tag and push: `git tag v0.8.0 && git push origin v0.8.0`.
+2. Commit, then tag and push: `git tag v0.9.0 && git push origin v0.9.0`.
 3. The *Release* workflow (`.github/workflows/release.yml`) runs the tests,
    checks the tag matches `manifest.json`, builds
    `rocksoftware-dna-vaihde-connector-<version>.zip` (only `manifest.json`,
@@ -60,17 +56,37 @@ ERP näyttää varoituksen, jos laajennuksen versio on vanhentunut.
 
 Never commit zips to the repository.
 
+## Backend API
+
+The user enters the API's **full base address** (e.g.
+`https://example.fi/api/calls`) and a token on the options page. When the
+address is saved, the browser asks the user to allow it
+(`optional_host_permissions`); no backend address is built into the
+extension.
+
+Every request goes to `<base>/<path>` with `Authorization: Bearer <token>` and
+JSON bodies. Answers are JSON; an error answer may carry `{error: "<Finnish
+message>"}`, which the extension shows. 401 = token refused, 403 = token
+lacks the rights.
+
+| Request | When | Body → answer |
+|---|---|---|
+| `GET calls/index` | every 2 s while DNA is open | → `{calls: [call]}`: calls queued for this token's user to dial |
+| `POST calls/edit/{id}` | call state changes | `{status: dialing\|connected\|ended\|failed\|missed}` → `{call, transcription?, agent?}`; `connected` answers the transcription session (temporary Speechmatics key, channels) or an AI agent session |
+| `POST calls/add` | a call rings in DNA | `{phone_number, direction: "incoming"}` → `{call}` |
+| `GET calls/view/{id}` | while ringing / during a call | → `{call}`; `status`, `is_mine` and `user_name` tell whether to answer in DNA or who answered |
+| `POST call-softphones/add` | every 5 s (30 s while DNA is closed) | DNA open/signed in, microphone, pop-ups, extension version → `{softphone: {allowed, reasons, warnings}}`, shown in the DNA tab |
+| `POST call-transcript-segments/add` | about once a second during a call | `{call_id, segments}` |
+| `POST call-usages/add` | every 15 s and at the end | `{call_id, usages}`: Speechmatics seconds, OpenAI tokens |
+| `GET call-listen-sessions/index?call_id=` · `POST call-listen-sessions/edit/{id}` | during a call | live listening (WebRTC offer/answer) |
+| `POST messages/add` | AI agent calls | `{call_id, text}`: a note the agent saved |
+
+`src/background.js` is the reference for the exact fields.
+
 ## How it works
 
-The extension reports to the ERP every 5 seconds (every 30 while DNA is
-closed): DNA open and signed in, microphone allowed, pop-ups, its version.
-The ERP shows whether DNA is ready and refuses *Soita* while it cannot dial.
-The status box in the DNA tab shows the same answer: *valmis*, warnings in
-amber, or what blocks calls in red.
-
-No ERP address is built in: when the address is saved on the options page,
-the browser asks the user to allow it (`optional_host_permissions`). Without
-that permission the status box and *Tarkista* say what to do.
+The status box in the DNA tab shows the backend's answer to the softphone
+report: *valmis*, warnings in amber, or what blocks calls in red.
 
 Disable other extensions that wrap DNA's microphone while using this one.
 
@@ -79,15 +95,15 @@ while idle.**
 
 | File | World | Does |
 |---|---|---|
-| `src/background.js` | service worker | Holds the ERP token. Talks to the ERP's public API (`/public-api/v1/customer-service/*`) and keeps one Speechmatics WebSocket per side during a call; batches final lines to the ERP once a second. |
-| `src/directory.js` | DNA directory, isolated | Polls for queued calls (through the worker), claims one and dials it. Reads DNA's incoming-call pop-up and answers it on *Vastaa* in the ERP. |
+| `src/background.js` | service worker | Holds the API token. Talks to the backend API and keeps one Speechmatics WebSocket per side during a call; batches final lines to the backend once a second. |
+| `src/directory.js` | DNA directory, isolated | Polls for queued calls (through the worker), claims one and dials it. Reads DNA's incoming-call pop-up and answers it when the backend asks. |
 | `src/call-window.js` | DNA call window, isolated | Reads the call's state from the window (see below), starts/stops capture, relays audio to the worker, shows a status box. |
 | `src/capture.js` | DNA call window, MAIN | Listens to DNA's microphone stream (getUserMedia) and the remote WebRTC audio track, converts both to 16 kHz PCM. DNA's own streams are not changed. |
 | `src/observe*.js` | DNA pages | Observe mode (off by default): records what DNA shows, for troubleshooting when DNA changes its pages. |
-| `src/shared/*.js` | — | Pure helpers: call-state and ringing-screen reading, transcript batching, PCM conversion, which tab dials, poll backoff, the softphone report, the *Tarkista* checklist, the ERP host permission. Unit-tested. |
+| `src/shared/*.js` | — | Pure helpers: call-state and ringing-screen reading, transcript batching, PCM conversion, which tab dials, poll backoff, the softphone report, the *Tarkista* checklist, the API host permission. Unit-tested. |
 
-The long-lived Speechmatics key stays in the ERP. When a call connects, the ERP
-answers with a 60-second temporary key per stream; the WebSockets run in the
+Long-lived Speechmatics keys stay in the backend. When a call connects, the
+backend answers with a short-lived key per stream; the WebSockets run in the
 service worker so DNA's page security policy cannot block them.
 
 ### Reading the call's state
@@ -110,14 +126,14 @@ test calls: a dialog with a pulsing avatar (`.call-animation`), *Incoming
 call*, the caller's number and two round buttons (red decline, green answer),
 while the tab title reads `00358… is calling...`.
 
-- The pop-up opens → the number goes to the ERP (`calls/add`, incoming), which
-  rings it for the staff.
-- *Vastaa* in the ERP → the tab presses DNA's **green** button (never any
-  other). DNA opens its call window, which is transcribed like a dialled call.
+- The pop-up opens → the number goes to the backend (`calls/add`).
+- The backend says this user answered → the tab presses DNA's **green**
+  button (never any other). DNA opens its call window, which is transcribed
+  like a dialled call.
 - The pop-up closes → reported as stopped ringing 0.3 seconds later (missed,
-  unless a colleague answered). If the green button was pressed in this tab
-  (by hand or by *Vastaa*), DNA's call window takes over instead; stopped is
-  reported only if no call window appeared within 15 seconds.
+  unless someone else answered). If the green button was pressed in this tab,
+  DNA's call window takes over instead; stopped is reported only if no call
+  window appeared within 15 seconds.
 - A hidden number is not reported; the status box says to answer in DNA.
 
 If DNA changes the pop-up, `src/shared/ring-screen.js` and `ringPopup()` in
@@ -133,7 +149,7 @@ Without Node installed: `docker run --rm -v "$PWD:/app:ro" -w /app node:22-alpin
 
 ## Known limits
 
-- Only calls queued from the ERP, or ringing in DNA, are handled; a call
+- Only calls queued by the backend, or ringing in DNA, are handled; a call
   dialled by hand in DNA is not transcribed.
 - The page capture runs in DNA's own JavaScript world and shares it with DNA's
   scripts. It is not a supported DNA integration and may break when DNA

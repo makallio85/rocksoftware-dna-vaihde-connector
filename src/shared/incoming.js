@@ -1,9 +1,9 @@
 /*
  * An incoming call ringing on this softphone: what to do next, from what the
- * ERP says about it. Pure, so it is tested without a browser
+ * backend says about it. Pure, so it is tested without a browser
  * (test/shared.test.js).
  *
- *  - 'answer-in-dna'      this employee pressed *Vastaa* in the ERP, and DNA
+ *  - 'answer-in-dna'      this employee answered in the backend, and DNA
  *                         still rings: the page answers it.
  *  - 'answered-elsewhere' a colleague took it: stop treating it as ringing here.
  *  - 'gone'               it stopped ringing everywhere (missed) or is over.
@@ -17,7 +17,7 @@
 
     /**
      * @param {{askedToAnswer?: boolean, windowBound?: boolean}} entry What this softphone did.
-     * @param {{status: string, is_mine: boolean}} call The ERP's view of the call.
+     * @param {{status: string, is_mine: boolean}} call The backend's view of the call.
      * @returns {'answer-in-dna'|'answered-elsewhere'|'gone'|'wait'}
      */
     function decide(entry, call) {
