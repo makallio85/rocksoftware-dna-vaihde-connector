@@ -33,7 +33,7 @@ jobs:
 
       - name: Build zip
         run: |
-          zip -r "rocksoftware-dna-vaihde-connector-$VERSION.zip" manifest.json options.html options.js src
+          zip -r "rocksoftware-dna-vaihde-connector-$VERSION.zip" manifest.json options.html options.js connect.html connect.js src
           unzip -l "rocksoftware-dna-vaihde-connector-$VERSION.zip"
 
       - name: Publish release

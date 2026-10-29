@@ -10,7 +10,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 function load(file) {
-    const context = { atob, btoa, Int16Array, Uint8Array, String, Math, Number, URL };
+    const context = { atob, btoa, Int16Array, Uint8Array, String, Math, Number, URL, URLSearchParams };
     context.globalThis = context;
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', file), 'utf8'), context);
     return context;
@@ -22,6 +22,7 @@ const { DVCPcm } = load('pcm.js');
 const { DVCListen } = load('listen.js');
 const { DVCIncoming } = load('incoming.js');
 const { DVCRingScreen } = load('ring-screen.js');
+const { DVCConnect } = load('connect.js');
 
 // Objects made inside the loaded context have that context's prototypes.
 const plain = (value) => JSON.parse(JSON.stringify(value));
@@ -310,4 +311,41 @@ test('the backend address becomes the host permission the browser is asked for',
     assert.equal(DVCSoftphone.originPattern('http://api.example.fi'), null, 'plain http only for localhost');
     assert.equal(DVCSoftphone.originPattern('api.example.fi'), null);
     assert.equal(DVCSoftphone.originPattern(''), null);
+});
+
+test('a connect link gives the API address and token', () => {
+    const link = DVCConnect.parseLink('#api=' + encodeURIComponent('https://api.example.fi/calls/') + '&token=abc123');
+    assert.deepEqual(plain(link), { apiUrl: 'https://api.example.fi/calls', token: 'abc123' });
+    assert.deepEqual(plain(DVCConnect.parseLink('#api=http%3A%2F%2Flocalhost%3A8765%2Fapi&token=t')),
+        { apiUrl: 'http://localhost:8765/api', token: 't' });
+});
+
+test('a connect link without https, address or token is refused', () => {
+    assert.ok(DVCConnect.parseLink('#api=' + encodeURIComponent('http://api.example.fi') + '&token=t').error);
+    assert.ok(DVCConnect.parseLink('#token=t').error);
+    assert.ok(DVCConnect.parseLink('#api=' + encodeURIComponent('https://api.example.fi')).error);
+    assert.ok(DVCConnect.parseLink('').error);
+    assert.ok(DVCConnect.parseLink('#api=' + encodeURIComponent('https://user:pw@api.example.fi') + '&token=t').error);
+    assert.ok(DVCConnect.parseLink('#api=' + encodeURIComponent('https://api.example.fi') + '&token=a%20b').error);
+    assert.ok(DVCConnect.parseLink('#api=' + encodeURIComponent('https://api.example.fi') + '&token=' + 'x'.repeat(513)).error);
+});
+
+test('a link connects a new install and renews the same backend, never moves to another', () => {
+    assert.equal(DVCConnect.decide(undefined, 'https://api.example.fi/calls'), 'connect');
+    assert.equal(DVCConnect.decide('', 'https://api.example.fi/calls'), 'connect');
+    assert.equal(DVCConnect.decide('https://api.example.fi/calls/', 'https://api.example.fi/calls'), 'renew');
+    assert.equal(DVCConnect.decide('https://api.example.fi/calls', 'https://other.example.com/calls'), 'refuse');
+    assert.equal(DVCConnect.decide('https://api.example.fi/calls', 'https://api.example.fi/other'), 'refuse');
+});
+
+test('call audio goes only to the transcription and AI services', () => {
+    assert.equal(DVCConnect.isProviderStream('wss://eu.rt.speechmatics.com/v2?jwt=x'), true);
+    assert.equal(DVCConnect.isProviderStream('wss://eu2.rt.speechmatics.com/v2'), true);
+    assert.equal(DVCConnect.isProviderStream('wss://api.openai.com/v1/realtime?model=x'), true);
+    assert.equal(DVCConnect.isProviderStream('wss://evil.example.com/v2'), false);
+    assert.equal(DVCConnect.isProviderStream('wss://rt.speechmatics.com.evil.example.com/'), false);
+    assert.equal(DVCConnect.isProviderStream('wss://evilrt.speechmatics.com/'), false);
+    assert.equal(DVCConnect.isProviderStream('ws://eu.rt.speechmatics.com/'), false, 'encrypted only');
+    assert.equal(DVCConnect.isProviderStream('https://api.openai.com/'), false);
+    assert.equal(DVCConnect.isProviderStream(''), false);
 });

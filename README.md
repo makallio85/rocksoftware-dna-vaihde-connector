@@ -26,11 +26,13 @@ an API address and an API token issued by the backend.
 3. Avaa Chromessa `chrome://extensions` (Edgessä `edge://extensions`), laita
    **Developer mode / Kehittäjätila** päälle ja valitse **Load unpacked /
    Lataa pakkaamaton** → valitse purettu kansio (se, jossa on `manifest.json`).
-4. Avaa laajennuksen **Details → Extension options**:
-   - **Taustajärjestelmän API-osoite** ja **oma API-token** – saat ne
-     taustajärjestelmän ylläpitäjältä.
-   - Paina **Tallenna** ja valitse selaimen kysymykseen **Salli**.
-   - **Tarkista** kertoo, onko kaikki kunnossa ja mitä tehdä, jos ei ole.
+4. Yhdistä laajennus taustajärjestelmään: paina taustajärjestelmässä
+   **Yhdistä DNA Vaihde Connector**, tarkista avautuvalla sivulla osoite,
+   paina **Yhdistä** ja valitse selaimen kysymykseen **Salli**.
+   (Jos taustajärjestelmässä ei ole Yhdistä-painiketta: laajennuksen
+   **Details → Extension options** → API-osoite ja API-token ylläpitäjältä →
+   **Tallenna** → **Salli**.) Asetusten **Tarkista** kertoo, onko kaikki
+   kunnossa.
 5. Salli ponnahdusikkunat osoitteelle `https://vaihde.dna.fi`
    (`chrome://settings/content/popups` → Salli). DNA avaa jokaisen puhelun
    omaan ikkunaansa.
@@ -56,13 +58,43 @@ an API address and an API token issued by the backend.
 
 Never commit zips to the repository.
 
-## Backend API
+## Connecting a backend
 
-The user enters the API's **full base address** (e.g.
-`https://example.fi/api/calls`) and a token on the options page. When the
-address is saved, the browser asks the user to allow it
-(`optional_host_permissions`); no backend address is built into the
-extension.
+The extension needs the API's **full base address** (e.g.
+`https://example.fi/api/calls`) and a token for the user. No backend address
+is built in; the browser asks the user to allow the address
+(`optional_host_permissions`).
+
+**One click (recommended).** The extension's ID is fixed by the `key` in
+`manifest.json`: **`fikiichepjhbdeclghchkglkfmpibgac`**, whatever folder it
+is loaded from. A backend issues a token for the logged-in user and opens
+
+```
+chrome-extension://fikiichepjhbdeclghchkglkfmpibgac/connect.html#api=<URL-encoded API base>&token=<URL-encoded token>
+```
+
+The part after `#` never reaches a server, and the page clears it at once.
+The page shows the address; the user presses **Yhdistä** and allows the
+address. Whether the extension is installed can be checked first with
+`fetch('chrome-extension://fikiichepjhbdeclghchkglkfmpibgac/connect.html')`
+(it fails if not).
+
+- A new install is connected; the same address gets its token renewed.
+- **A link never replaces a connection to another backend.** That is changed
+  on the options page only, so a web page cannot move the extension to a
+  server of its own.
+
+**By hand.** The options page takes the address and token.
+
+**Call audio** leaves the browser only for Speechmatics (`*.rt.speechmatics.com`)
+and OpenAI (`api.openai.com`), whatever streaming address a backend hands
+out. Live listening (below) sends the call's audio to a listener the backend
+names over WebRTC: connect only backends you trust.
+
+**Never change the `key` in `manifest.json`**: the extension's ID, and every
+backend's connect link, depend on it.
+
+## Backend API
 
 Every request goes to `<base>/<path>` with `Authorization: Bearer <token>` and
 JSON bodies. Answers are JSON; an error answer may carry `{error: "<Finnish

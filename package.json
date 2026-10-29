@@ -1,6 +1,6 @@
 {
   "name": "rocksoftware-dna-vaihde-connector",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "Chrome/Edge extension connecting the DNA Vaihde softphone to a backend: dials queued calls, reports incoming calls and transcribes calls live.",
   "scripts": {

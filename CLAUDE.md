@@ -30,6 +30,11 @@ The only personal data allowed is the commit author's name and email.
   are unit-tested in `test/shared.test.js` (`npm test`, or Node in Docker).
 - User-facing text is Finnish.
 - Internal names use the `dvc-` / `DVC` prefix.
+- Never change `key` in `manifest.json`: it fixes the extension ID
+  (`fikiichepjhbdeclghchkglkfmpibgac`) that backends' connect links use.
+- Call audio may go only to the providers `DVCConnect.isProviderStream()`
+  allows; a connect link never replaces a connection to another backend.
+  Keep both guards.
 
 ## Generic, not tied to one backend
 

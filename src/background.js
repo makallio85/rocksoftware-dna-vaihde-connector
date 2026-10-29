@@ -19,7 +19,7 @@
  * policy cannot block them. No long-lived provider key ever exists here: the
  * backend hands out short-lived keys bound to each session.
  */
-importScripts('shared/transcript.js', 'shared/pcm.js', 'shared/usage.js', 'shared/listen.js', 'shared/incoming.js', 'shared/softphone.js');
+importScripts('shared/transcript.js', 'shared/pcm.js', 'shared/usage.js', 'shared/listen.js', 'shared/incoming.js', 'shared/softphone.js', 'shared/connect.js');
 
 var FLUSH_MS = 1000;
 var WATCH_MS = 2000;
@@ -463,12 +463,20 @@ async function connect(s) {
     try {
         var result = await api('POST', 'calls/edit/' + s.call.id, { status: 'connected' });
         if (result.agent) {
+            if (!DVCConnect.isProviderStream(result.agent.url)) {
+                s.port.postMessage({ type: 'not-transcribing', reason: 'taustajärjestelmän antama tekoälyosoite ei ole sallittu.' });
+                return;
+            }
             openAgent(s, result.agent);
             s.port.postMessage({ type: 'agent-started', sample_rate: result.agent.sample_rate });
             return;
         }
         if (!result.transcription) {
             s.port.postMessage({ type: 'not-transcribing', reason: result.transcription_error || 'puhelua ei litteroida.' });
+            return;
+        }
+        if (!DVCConnect.isProviderStream(result.transcription.url)) {
+            s.port.postMessage({ type: 'not-transcribing', reason: 'taustajärjestelmän antama litterointiosoite ei ole sallittu.' });
             return;
         }
         s.sockets = {};
@@ -485,6 +493,9 @@ async function connect(s) {
 // --- OpenAI Realtime agent ------------------------------------------------------
 
 function openAgent(s, agent) {
+    if (!DVCConnect.isProviderStream(agent.url)) {
+        return;
+    }
     var socket = new WebSocket(agent.url, ['realtime', 'openai-insecure-api-key.' + agent.client_secret]);
     s.agent = { socket: socket, rate: agent.sample_rate || 24000, open: false, ending: false };
 
@@ -593,6 +604,10 @@ async function stopAgent(s, report) {
 // --- Speechmatics streams ----------------------------------------------------------
 
 function open(s, channel, transcription) {
+    if (!DVCConnect.isProviderStream(transcription.url)) {
+        // Also on a reopen: call audio goes to the transcription service only.
+        return;
+    }
     var socket = new WebSocket(transcription.url);
     var stream = { socket: socket, started: false, sent: 0, closing: false, done: null };
     stream.finished = new Promise(function (resolve) { stream.done = resolve; });

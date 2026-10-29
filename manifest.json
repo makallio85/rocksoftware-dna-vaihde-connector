@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw5w/kEd0FIN/pxruXFrK3hH1IolSAIOcze69WaDCgPhKE8re8WISbPo+obMK4tsYkSADlREE6u/YmQMJ6SFJkIxNZ/ACaI0B/a6tRfc5QTYYSQ5jDBRZ26uhtW5C0PiBZBJ5g+jJtKCqEUkdJhd3cmZV5L7r/nnFCfwlTVZ7gaWY44Tc6gJzIcWFGukrN9irROVi5LLnHGwsX8QoDnXRyLeVYFcPQpeV8psJaPpqkNu9iLEiMiVkMgtzJgkMzHqx6IhVxR3B9uIign3CrSnGRdu+zqV16gFoOXOY6fWSVTvsQsVASFBzQjOPEARrsJiDCaHxxYg+TDMuGwjwZNvxsQIDAQAB",
   "name": "DNA Vaihde Connector",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Yhdistää DNA Vaihteen taustajärjestelmään: soittaa jonotetut puhelut, tuo saapuvat puhelut taustajärjestelmään ja litteroi puhelut. Ääntä ei tallenneta.",
   "minimum_chrome_version": "116",
   "permissions": ["storage", "alarms"],
@@ -20,6 +21,12 @@
     "service_worker": "src/background.js"
   },
   "options_page": "options.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["connect.html"],
+      "matches": ["https://*/*", "http://localhost/*"]
+    }
+  ],
   "content_scripts": [
     {
       "matches": ["https://vaihde.dna.fi/*"],
