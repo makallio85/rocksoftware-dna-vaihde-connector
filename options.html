@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fi">
+<head>
+    <meta charset="utf-8">
+    <title>DNA Vaihde Connector</title>
+    <style>
+        body { font: 14px system-ui, sans-serif; color: #172534; max-width: 560px; margin: 24px auto; padding: 0 16px; }
+        label { display: block; font-weight: 600; margin: 16px 0 4px; }
+        input { width: 100%; box-sizing: border-box; padding: 6px 8px; font: inherit; }
+        .hint { color: #5c6b7a; font-size: 12px; margin-top: 4px; }
+        .actions { margin-top: 20px; display: flex; gap: 8px; }
+        button { padding: 6px 14px; font: inherit; cursor: pointer; }
+        #status { margin-top: 16px; min-height: 1.4em; }
+        .ok { color: #146c43; } .error { color: #b02a37; }
+        .warning { color: #997404; }
+        #checklist { list-style: none; padding: 0; margin: 12px 0 0; }
+        #checklist li { padding: 6px 0; border-top: 1px solid #e3e6ea; }
+        #checklist b { display: inline-block; min-width: 150px; }
+    </style>
+</head>
+<body>
+    <h1>DNA Vaihde Connector</h1>
+    <p>Laajennus soittaa ERP:ssä jonotetut puhelut DNA Vaihteella, tuo saapuvat puhelut ERP:iin ja
+        litteroi puhelut. Ääntä ei tallenneta.</p>
+
+    <label for="erpUrl">ERP:n osoite</label>
+    <input id="erpUrl" type="url" placeholder="https://erp.example.fi">
+    <div class="hint">Kun tallennat, selain kysyy luvan tähän osoitteeseen – valitse Salli.</div>
+
+    <label for="token">Oma API-token</label>
+    <input id="token" type="password" autocomplete="off" placeholder="Ei tallennettua tokenia">
+    <div class="hint">Tehdään ERP:ssä kohdassa Hallinta › API-tokenit sinun käyttäjällesi, oikeuksin
+        <code>customer_service.calls.read</code> ja <code>customer_service.calls.write</code>. Jätä tyhjäksi, jos et vaihda sitä.</div>
+
+    <div class="actions">
+        <button id="save" type="button">Tallenna</button>
+        <button id="test" type="button">Testaa yhteys</button>
+        <button id="check" type="button">Tarkista</button>
+    </div>
+    <div id="status" role="status"></div>
+    <ul id="checklist" aria-live="polite"></ul>
+
+    <h2 style="margin-top:32px;font-size:18px">Tarkkailutila (saapuvat puhelut)</h2>
+    <p class="hint">Vianetsintään, jos DNA muuttaa näkymiään: kirjaa, mitä DNA näyttää – otsikot, ilmoitukset,
+        painikkeet, puhelinnumerot ja soittoäänet. Mitään ei klikata eikä muuteta. Kirjaus pysyy vain tässä
+        selaimessa, kunnes lataat sen tiedostoksi. Pidä pois päältä tavallisessa käytössä.</p>
+    <label style="font-weight:400"><input type="checkbox" id="observe"> Tarkkailutila päällä</label>
+    <div class="actions">
+        <button id="download" type="button">Lataa kirjaus</button>
+        <button id="clear" type="button">Tyhjennä</button>
+    </div>
+    <div id="observe-status" class="hint"></div>
+
+    <script src="src/shared/softphone.js"></script>
+    <script src="options.js"></script>
+</body>
+</html>

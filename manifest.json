@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "DNA Vaihde Connector",
+  "version": "0.8.0",
+  "description": "Yhdistää DNA Vaihteen ERP:iin: soittaa ERP:ssä jonotetut puhelut, tuo saapuvat puhelut ERP:iin ja litteroi puhelut. Ääntä ei tallenneta.",
+  "minimum_chrome_version": "116",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": [
+    "https://vaihde.dna.fi/*",
+    "https://mp.speechmatics.com/*",
+    "wss://eu.rt.speechmatics.com/*",
+    "wss://global.rt.speechmatics.com/*",
+    "wss://api.openai.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["https://vaihde.dna.fi/*"],
+      "js": ["src/observe-main.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://vaihde.dna.fi/*"],
+      "js": ["src/observe.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://vaihde.dna.fi/join/main/*"],
+      "js": ["src/capture.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://vaihde.dna.fi/join/main/*"],
+      "js": ["src/shared/call-state.js", "src/shared/pcm.js", "src/call-window.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://vaihde.dna.fi/cwp/*"],
+      "js": ["src/shared/softphone.js", "src/shared/ring-screen.js", "src/directory.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

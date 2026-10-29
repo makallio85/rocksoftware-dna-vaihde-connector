@@ -1,0 +1,9 @@
+{
+  "name": "rocksoftware-dna-vaihde-connector",
+  "version": "0.8.0",
+  "private": true,
+  "description": "Chrome/Edge extension connecting the DNA Vaihde softphone to an ERP: dials queued calls, reports incoming calls and transcribes calls live.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
